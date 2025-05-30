@@ -1,17 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const entryController = require('../controllers/entry');
+const { 
+    addMoodEntry,
+    getMoodEntries,
+    getMcqStats,
+    getGratitudeEntries
+} = require('../controllers/entry');
+const authMiddleware = require('../middleware/auth');
 
-// Mood entries
-router.post('/mood', entryController.addMoodEntry);
-router.get('/mood/:userId', entryController.getMoodEntries);
+// Protect all entry routes
+router.use(authMiddleware);
 
-// MCQ entries
-router.post('/mcq', entryController.addMcqEntry);
-router.get('/mcq/:userId', entryController.getMcqEntries);
+// Combined entry routes
+router.post('/', addMoodEntry);
+router.get('/user/:userId', getMoodEntries);
 
-// Gratitude entries
-router.post('/gratitude', entryController.addGratitudeEntry);
-router.get('/gratitude/:userId', entryController.getGratitudeEntries);
+// MCQ specific routes
+router.get('/mcq/stats/:userId', getMcqStats);
 
-module.exports = router; 
+// Gratitude specific routes
+router.get('/gratitude/:userId', getGratitudeEntries);
+
+module.exports = router;

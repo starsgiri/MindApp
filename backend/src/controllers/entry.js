@@ -1,70 +1,96 @@
 const pool = require('../db');
+const Mood = require('../models/Mood');
+const { Op } = require('sequelize');
 
 // Mood Entries
 exports.addMoodEntry = async (req, res) => {
-  const { user_id, mood_id, entry_date } = req.body;
   try {
-    const [result] = await pool.query(
-      'INSERT INTO user_mood_entries (user_id, mood_id, entry_date) VALUES (?, ?, ?)',
-      [user_id, mood_id, entry_date]
-    );
-    res.json({ id: result.insertId, user_id, mood_id, entry_date });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const { label, emoji, healthStatus, gratitudeText, mcqAnswers } = req.body;
+
+    const entry = await Mood.create({
+      user_id: req.user.id,
+      label,
+      emoji,
+      healthStatus,
+      gratitudeText,
+      mcqAnswers,
+      entry_date: new Date(),
+    });
+
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error('Add entry error:', error);
+    res.status(500).json({ error: 'Failed to add entry' });
   }
 };
 
 exports.getMoodEntries = async (req, res) => {
-  const { userId } = req.params;
-  const [rows] = await pool.query(
-    'SELECT * FROM user_mood_entries WHERE user_id = ? ORDER BY entry_date DESC',
-    [userId]
-  );
-  res.json(rows);
-};
-
-// MCQ Entries
-exports.addMcqEntry = async (req, res) => {
-  const { user_id, question, answer, entry_date } = req.body;
   try {
-    const [result] = await pool.query(
-      'INSERT INTO user_mcq_entries (user_id, question, answer, entry_date) VALUES (?, ?, ?, ?)',
-      [user_id, question, answer, entry_date]
-    );
-    res.json({ id: result.insertId, user_id, question, answer, entry_date });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const entries = await Mood.findAll({
+      where: {
+        user_id: req.params.userId,
+        [Op.not]: {
+          mcqAnswers: null,
+        },
+      },
+      order: [['entry_date', 'DESC']],
+    });
+    res.json(entries);
+  } catch (error) {
+    console.error('Get entries error:', error);
+    res.status(500).json({ error: 'Failed to fetch entries' });
   }
 };
 
-exports.getMcqEntries = async (req, res) => {
-  const { userId } = req.params;
-  const [rows] = await pool.query(
-    'SELECT * FROM user_mcq_entries WHERE user_id = ? ORDER BY entry_date DESC',
-    [userId]
-  );
-  res.json(rows);
-};
-
-// Gratitude Entries
-exports.addGratitudeEntry = async (req, res) => {
-  const { user_id, gratitude_text, entry_date } = req.body;
+// MCQ specific operations
+exports.getMcqStats = async (req, res) => {
   try {
-    const [result] = await pool.query(
-      'INSERT INTO user_gratitude_entries (user_id, gratitude_text, entry_date) VALUES (?, ?, ?)',
-      [user_id, gratitude_text, entry_date]
-    );
-    res.json({ id: result.insertId, user_id, gratitude_text, entry_date });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const entries = await Mood.findAll({
+      where: {
+        user_id: req.params.userId,
+        mcqAnswers: {
+          [Op.not]: null,
+        },
+      },
+      attributes: ['mcqAnswers', 'entry_date'],
+    });
+
+    // Process MCQ statistics
+    const stats = entries.reduce((acc, entry) => {
+      const answers = entry.mcqAnswers;
+      Object.keys(answers).forEach((question) => {
+        if (!acc[question]) {
+          acc[question] = {};
+        }
+        const answer = answers[question];
+        acc[question][answer] = (acc[question][answer] || 0) + 1;
+      });
+      return acc;
+    }, {});
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Get MCQ stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch MCQ statistics' });
   }
 };
 
+// Gratitude specific operations
 exports.getGratitudeEntries = async (req, res) => {
-  const { userId } = req.params;
-  const [rows] = await pool.query(
-    'SELECT * FROM user_gratitude_entries WHERE user_id = ? ORDER BY entry_date DESC',
-    [userId]
-  );
-  res.json(rows);
-}; 
+  try {
+    const entries = await Mood.findAll({
+      where: {
+        user_id: req.params.userId,
+        gratitudeText: {
+          [Op.not]: null,
+        },
+      },
+      attributes: ['gratitudeText', 'entry_date'],
+      order: [['entry_date', 'DESC']],
+    });
+    res.json(entries);
+  } catch (error) {
+    console.error('Get gratitude entries error:', error);
+    res.status(500).json({ error: 'Failed to fetch gratitude entries' });
+  }
+};

@@ -1,40 +1,46 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const User = require('./User');
 
 const Mood = sequelize.define('Mood', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: User,
-      key: 'id'
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    user_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'Users',
+            key: 'id'
+        }
+    },
+    label: {
+        type: DataTypes.STRING(50),
+        allowNull: false
+    },
+    emoji: {
+        type: DataTypes.STRING(10),
+        allowNull: false
+    },
+    healthStatus: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
+    gratitudeText: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
+    mcqAnswers: {
+        type: DataTypes.JSON,
+        allowNull: true
+    },
+    entry_date: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW
     }
-  },
-  mood: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  emoji: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  note: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  }
+}, {
+    timestamps: true
 });
 
-Mood.belongsTo(User, { foreignKey: 'userId' });
-User.hasMany(Mood, { foreignKey: 'userId' });
-
-module.exports = Mood; 
+module.exports = Mood;

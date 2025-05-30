@@ -3,49 +3,55 @@ const { sequelize } = require('../config/database');
 const bcrypt = require('bcryptjs');
 
 const User = sequelize.define('User', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  username: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true
-  },
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-    validate: {
-      isEmail: true
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    name: {
+        type: DataTypes.STRING(100),
+        allowNull: false
+    },
+    email: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        unique: true,
+        validate: {
+            isEmail: true
+        }
+    },
+    password_hash: {
+        type: DataTypes.STRING(255),
+        allowNull: false
+    },
+    emoji: {
+        type: DataTypes.STRING(10),
+        allowNull: true
+    },
+    description: {
+        type: DataTypes.TEXT,
+        allowNull: true
     }
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  },
-  updatedAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  }
 }, {
-  hooks: {
-    beforeCreate: async (user) => {
-      if (user.password) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
+    timestamps: true,
+    hooks: {
+        beforeCreate: async (user) => {
+            if (user.password_hash) {
+                const salt = await bcrypt.genSalt(10);
+                user.password_hash = await bcrypt.hash(user.password_hash, salt);
+            }
+        }
     }
-  }
 });
 
 User.prototype.validatePassword = async function(password) {
-  return await bcrypt.compare(password, this.password);
+    return await bcrypt.compare(password, this.password_hash);
 };
 
-module.exports = User; 
+User.prototype.toJSON = function() {
+    const values = { ...this.get() };
+    delete values.password_hash;
+    return values;
+};
+
+module.exports = User;
