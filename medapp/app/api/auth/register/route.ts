@@ -27,8 +27,8 @@ export async function POST(request: Request) {
 
     // Insert new user
     const [result]: any = await connection.execute(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [name, email, hashedPassword]
+      'INSERT INTO users (name, email, password_hash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+      [name, email, hashedPassword, new Date(), new Date()]
     );
     
     connection.release();
