@@ -5,6 +5,7 @@ import { Bar } from "react-chartjs-2";
 import Header from "./components/Header";
 import { User } from "./components/UserMenu";
 import { questionsByUser } from "./components/questions";
+import { moodApi } from "./services/api";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -23,8 +24,6 @@ const defaultUsers: User[] = [
   { id: 3, name: "Charlie" },
 ];
 
-const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 const moodOptions = [
   { label: "Happy", emoji: "😊", color: "bg-yellow-100", backlight: "#facc15" },
   { label: "Sad", emoji: "😢", color: "bg-blue-100", backlight: "#60a5fa" },
@@ -36,15 +35,65 @@ const moodOptions = [
 ];
 
 export default function Home() {
-  const [user] = useState<User>({ id: 1, name: "Alice" });
+  const [user, setUser] = useState<User | null>(null);
   const [answers, setAnswers] = useState({
     selectedMood: null as string | null,
     healthStatus: "",
     mcqAnswers: [] as (number | null)[],
     gratitude: "",
-    weeklyMood: [2, 3, 4, 1, 3, 5, 4],
-    weeklyHealth: [3, 2, 4, 3, 4, 5, 4],
+    weeklyMood: [3, 3, 3, 3, 3, 3, 3], // Default neutral values
+    weeklyHealth: [3, 3, 3, 3, 3, 3, 3], // Default neutral values
   });
+  const [weekDays, setWeekDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // Get user data from localStorage on component mount
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, []);
+
+  // Fetch mood stats when user is available
+  useEffect(() => {
+    if (user) {
+      fetchMoodStats();
+    }
+  }, [user]);
+
+  const fetchMoodStats = async () => {
+    try {
+      setIsLoadingStats(true);
+      const stats = await moodApi.getMoodStats();
+      
+      // Update the answers state with fetched data
+      setAnswers(prev => ({
+        ...prev,
+        weeklyMood: stats.weeklyMood || prev.weeklyMood,
+        weeklyHealth: stats.weeklyHealth || prev.weeklyHealth,
+      }));
+      
+      // Update week days if provided by backend
+      if (stats.weekDays) {
+        setWeekDays(stats.weekDays);
+      }
+      
+      console.log('Mood stats fetched:', stats);
+    } catch (error) {
+      console.error('Error fetching mood stats:', error);
+      // Keep default values if fetch fails
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
 
   const addUser = () => {
     const name = prompt("Enter new user's name:");
@@ -53,7 +102,7 @@ export default function Home() {
     }
   };
 
-  const userQ = questionsByUser[String(user.id)];
+  const userQ = questionsByUser[String(user?.id || 1)];
   const moods = userQ?.mood || ["😊", "😢", "😡", "😌", "😰", "🤩", "🥱"];
   const healthPrompt = userQ?.healthPrompt || "What is the status of your health?";
   const mcqs = userQ?.mcqs || [];
@@ -61,6 +110,77 @@ export default function Home() {
 
   const updateAnswers = (update: any) => {
     setAnswers((prev) => ({ ...prev, ...update }));
+  };
+
+  // Updated function to handle saving responses to API
+  const handleSaveResponse = async () => {
+    if (!user) {
+      alert("Please log in to save your response.");
+      return;
+    }
+
+    if (!answers.selectedMood) {
+      alert("Please select a mood before saving.");
+      return;
+    }
+
+    setIsLoading(true);
+    setSaveStatus('idle');
+
+    try {
+      // Find the selected mood option to get the emoji
+      const selectedMoodOption = moodOptions.find(mood => mood.label === answers.selectedMood);
+      
+      // Convert MCQ answers to the expected format
+      const mcqAnswersFormatted: { [key: string]: string } = {};
+      mcqs.forEach((mcq: any, index: number) => {
+        if (answers.mcqAnswers[index] !== null && answers.mcqAnswers[index] !== undefined) {
+          // Create a key from the question (simplified)
+          const key = mcq.question.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+          const selectedOption = mcq.options[answers.mcqAnswers[index]];
+          mcqAnswersFormatted[key] = selectedOption;
+        }
+      });
+
+      // Prepare the data to send to API
+      const moodData = {
+        user_id: user.id,
+        label: answers.selectedMood,
+        emoji: selectedMoodOption?.emoji || "😊",
+        healthStatus: answers.healthStatus || undefined,
+        gratitudeText: answers.gratitude || undefined,
+        mcqAnswers: Object.keys(mcqAnswersFormatted).length > 0 ? mcqAnswersFormatted : undefined,
+      };
+
+      console.log("Sending mood data:", moodData);
+
+      // Call the API
+      const response = await moodApi.addMoodEntry(moodData);
+      
+      console.log("API Response:", response);
+      setSaveStatus('success');
+      alert("Response saved successfully!");
+
+      // Refresh mood stats after saving
+      await fetchMoodStats();
+
+      // Optionally reset the form (uncomment if you want to clear the form)
+      // setAnswers({
+      //   selectedMood: null,
+      //   healthStatus: "",
+      //   mcqAnswers: [],
+      //   gratitude: "",
+      //   weeklyMood: answers.weeklyMood,
+      //   weeklyHealth: answers.weeklyHealth,
+      // });
+
+    } catch (error: any) {
+      console.error("Error saving mood entry:", error);
+      setSaveStatus('error');
+      alert(`Failed to save response: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Weekly graph data
@@ -87,9 +207,30 @@ export default function Home() {
       title: { display: false },
     },
     scales: {
-      y: { beginAtZero: true, max: 5 },
+      y: { 
+        beginAtZero: true, 
+        max: 5,
+        ticks: {
+          stepSize: 1,
+          callback: function(value: any) {
+            const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+            return labels[value] || value;
+          }
+        }
+      },
     },
   };
+
+  if (!user) {
+    return (
+      <div className="relative min-h-screen flex flex-col items-center justify-center pt-24 pb-10 px-2 overflow-hidden bg-gradient-to-br from-white via-blue-50 to-violet-100">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-blue-700 mb-4">Please log in to continue</h2>
+          <p className="text-blue-600">You need to be logged in to track your mood.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen flex flex-col items-center pt-24 pb-10 px-2 overflow-hidden bg-gradient-to-br from-white via-blue-50 to-violet-100">
@@ -99,9 +240,15 @@ export default function Home() {
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-gradient-to-t from-blue-50 via-violet-100 to-transparent rounded-t-3xl blur-2xl opacity-60 z-0" />
       <div className="absolute top-1/3 left-1/4 w-40 h-40 bg-blue-100 rounded-full blur-2xl opacity-30 z-0" />
       <div className="absolute bottom-10 right-1/4 w-32 h-32 bg-violet-100 rounded-full blur-2xl opacity-20 z-0" />
+      
       {/* Main content */}
       <Header />
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-10 mt-4 z-10">
+        {/* User info */}
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-blue-700">Welcome, {user.name}! {user.emoji}</h1>
+        </div>
+
         {/* Mood Selection */}
         <div>
           <h2 className="text-xl font-bold text-blue-700 mb-4 text-center">Select your mood...?</h2>
@@ -140,6 +287,7 @@ export default function Home() {
             ))}
           </div>
         </div>
+
         {/* Health Status */}
         <div>
           <h2 className="text-xl font-bold text-blue-700 mb-4 text-center">{healthPrompt}</h2>
@@ -164,6 +312,7 @@ export default function Home() {
             >🩺</motion.span>
           </motion.div>
         </div>
+
         {/* MCQ Section */}
         <div className="flex flex-col gap-6">
           {mcqs.map((mcq: { question: string; options: string[] }, idx: number) => (
@@ -187,6 +336,7 @@ export default function Home() {
             </div>
           ))}
         </div>
+
         {/* Gratitude/Positive Prompt */}
         {gratitudeEnabled && (
           <div className="bg-green-50 rounded-xl p-4 shadow flex flex-col gap-2">
@@ -200,13 +350,72 @@ export default function Home() {
             />
           </div>
         )}
+
         {/* Weekly Graph */}
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-blue-700 mb-2 text-center">Your Weekly Mood & Health Status</h2>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-lg font-semibold text-blue-700">Current Weekly Mood & Health Status of all the Users</h2>
+            <button
+              onClick={fetchMoodStats}
+              disabled={isLoadingStats}
+              className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+            >
+              {isLoadingStats ? (
+                <>
+                  <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  🔄 Refresh
+                </>
+              )}
+            </button>
+          </div>
           <div className="bg-white rounded-xl shadow p-4">
-            <Bar data={data} options={options} />
+            {isLoadingStats ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <Bar data={data} options={options} />
+            )}
           </div>
         </div>
+
+        {/* Save Response Button */}
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={handleSaveResponse}
+            disabled={isLoading || !answers.selectedMood}
+            className={`px-8 py-3 font-bold rounded-full shadow-lg focus:outline-none focus:ring-4 transition-all duration-300 transform ${
+              isLoading || !answers.selectedMood
+                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300 hover:scale-105"
+            }`}
+          >
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Saving...
+              </div>
+            ) : (
+              "Save Response"
+            )}
+          </button>
+        </div>
+
+        {/* Status Message */}
+        {saveStatus === 'success' && (
+          <div className="text-center text-green-600 font-medium">
+            ✅ Response saved successfully!
+          </div>
+        )}
+        {saveStatus === 'error' && (
+          <div className="text-center text-red-600 font-medium">
+            ❌ Failed to save response. Please try again.
+          </div>
+        )}
       </div>
     </div>
   );
