@@ -2,34 +2,35 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { moodApi } from '../services/api';
+
 interface MCQAnswers {
-  productivity: string;
-  stress_level: string;
-  sleep_quality: string;
-  physical_activity: string;
-  social_interaction: string;
+  productivity?: string | null;
+  stress_level?: string | null;
+  sleep_quality?: string | null;
+  physical_activity?: string | null;
+  social_interaction?: string | null;
 }
 
 interface User {
   id: number;
-  name: string;
-  email: string;
-  emoji: string;
-  description: string;
+  name?: string | null;
+  email?: string | null;
+  emoji?: string | null;
+  description?: string | null;
 }
 
 interface MoodData {
   id: number;
   user_id: number;
-  label: string;
-  emoji: string;
-  healthStatus: string;
-  gratitudeText: string;
-  mcqAnswers: MCQAnswers;
-  entry_date: string;
-  createdAt: string;
-  updatedAt: string;
-  User: User;
+  label?: string | null;
+  emoji?: string | null;
+  healthStatus?: string | null;
+  gratitudeText?: string | null;
+  mcqAnswers?: MCQAnswers | null;
+  entry_date?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  User?: User | null;
 }
 
 const Page = () => {
@@ -53,22 +54,45 @@ const Page = () => {
     fetchMoods();
   }, []);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Invalid Date';
+    }
   };
 
-  const formatMCQValue = (value: string) => {
-  if (!value || typeof value !== 'string') {
-    return 'N/A';
-  }
-  return value.charAt(0).toUpperCase() + value.slice(1);
-};
+  const formatMCQValue = (value?: string | null) => {
+    if (!value || typeof value !== 'string') {
+      return 'N/A';
+    }
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+
+  const safeGetUserInfo = (user?: User | null) => {
+    return {
+      name: user?.name || 'Unknown User',
+      email: user?.email || 'No email',
+      emoji: user?.emoji || '👤',
+      description: user?.description || 'No description'
+    };
+  };
+
+  const safeMoodInfo = (mood: MoodData) => {
+    return {
+      label: mood.label || 'Unknown',
+      emoji: mood.emoji || '😐',
+      healthStatus: mood.healthStatus || 'No status provided',
+      gratitudeText: mood.gratitudeText || 'No gratitude text'
+    };
+  };
 
   if (loading) {
     return (
@@ -122,69 +146,74 @@ const Page = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {moods.map((mood, index) => (
-                      <tr key={mood.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="border border-gray-200 px-4 py-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="text-2xl">{mood.User.emoji}</div>
-                            <div>
-                              <div className="font-medium text-gray-900">{mood.User.name}</div>
-                              <div className="text-sm text-gray-500">{mood.User.email}</div>
-                              <div className="text-xs text-gray-400 mt-1">{mood.User.description}</div>
+                    {moods.map((mood, index) => {
+                      const userInfo = safeGetUserInfo(mood.User);
+                      const moodInfo = safeMoodInfo(mood);
+                      
+                      return (
+                        <tr key={mood.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="border border-gray-200 px-4 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="text-2xl">{userInfo.emoji}</div>
+                              <div>
+                                <div className="font-medium text-gray-900">{userInfo.name}</div>
+                                <div className="text-sm text-gray-500">{userInfo.email}</div>
+                                <div className="text-xs text-gray-400 mt-1">{userInfo.description}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="border border-gray-200 px-4 py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <div className="text-3xl mb-1">{mood.emoji}</div>
-                            <div className="font-medium text-gray-900">{mood.label}</div>
-                          </div>
-                        </td>
-                        <td className="border border-gray-200 px-4 py-4">
-                          <div className="text-sm text-gray-700">{mood.healthStatus}</div>
-                        </td>
-                        <td className="border border-gray-200 px-4 py-4">
-                          <div className="text-sm text-gray-700 max-w-xs">{mood.gratitudeText}</div>
-                        </td>
-                        <td className="border border-gray-200 px-4 py-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Productivity:</span>
-                              <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                                {formatMCQValue(mood.mcqAnswers.productivity)}
-                              </span>
+                          </td>
+                          <td className="border border-gray-200 px-4 py-4 text-center">
+                            <div className="flex flex-col items-center">
+                              <div className="text-3xl mb-1">{moodInfo.emoji}</div>
+                              <div className="font-medium text-gray-900">{moodInfo.label}</div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Stress:</span>
-                              <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                                {formatMCQValue(mood.mcqAnswers.stress_level)}
-                              </span>
+                          </td>
+                          <td className="border border-gray-200 px-4 py-4">
+                            <div className="text-sm text-gray-700">{moodInfo.healthStatus}</div>
+                          </td>
+                          <td className="border border-gray-200 px-4 py-4">
+                            <div className="text-sm text-gray-700 max-w-xs">{moodInfo.gratitudeText}</div>
+                          </td>
+                          <td className="border border-gray-200 px-4 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Productivity:</span>
+                                <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                                  {formatMCQValue(mood.mcqAnswers?.productivity)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Stress:</span>
+                                <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                                  {formatMCQValue(mood.mcqAnswers?.stress_level)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Sleep:</span>
+                                <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+                                  {formatMCQValue(mood.mcqAnswers?.sleep_quality)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Activity:</span>
+                                <span className="text-xs font-medium px-2 py-1 bg-orange-100 text-orange-800 rounded-full">
+                                  {formatMCQValue(mood.mcqAnswers?.physical_activity)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Social:</span>
+                                <span className="text-xs font-medium px-2 py-1 bg-pink-100 text-pink-800 rounded-full">
+                                  {formatMCQValue(mood.mcqAnswers?.social_interaction)}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Sleep:</span>
-                              <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-                                {formatMCQValue(mood.mcqAnswers.sleep_quality)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Activity:</span>
-                              <span className="text-xs font-medium px-2 py-1 bg-orange-100 text-orange-800 rounded-full">
-                                {formatMCQValue(mood.mcqAnswers.physical_activity)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Social:</span>
-                              <span className="text-xs font-medium px-2 py-1 bg-pink-100 text-pink-800 rounded-full">
-                                {formatMCQValue(mood.mcqAnswers.social_interaction)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="border border-gray-200 px-4 py-4">
-                          <div className="text-sm text-gray-700">{formatDate(mood.entry_date)}</div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="border border-gray-200 px-4 py-4">
+                            <div className="text-sm text-gray-700">{formatDate(mood.entry_date)}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

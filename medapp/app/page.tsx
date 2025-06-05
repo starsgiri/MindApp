@@ -41,15 +41,47 @@ export default function Home() {
     healthStatus: "",
     mcqAnswers: [] as (number | null)[],
     gratitude: "",
-    weeklyMood: [3, 3, 3, 3, 3, 3, 3], // Default neutral values
-    weeklyHealth: [3, 3, 3, 3, 3, 3, 3], // Default neutral values
+    weeklyMood: [3, 3, 3, 3, 3, 3, 3],
+    weeklyHealth: [3, 3, 3, 3, 3, 3, 3],
   });
   const [weekDays, setWeekDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  // Get user data from localStorage on component mount
+  const getUserQuestions = (userId: number) => {
+    const userSpecificQuestions = questionsByUser[String(userId)];
+    
+    if (userSpecificQuestions) {
+      return userSpecificQuestions;
+    }
+    
+    const defaultQuestions = questionsByUser['1'];
+    if (defaultQuestions) {
+      return defaultQuestions;
+    }
+    
+    return {
+      mood: ["😊", "😢", "😡", "😌", "😰", "🤩", "🥱"],
+      healthPrompt: "What is the status of your health?",
+      mcqs: [
+        {
+          question: "How would you rate your sleep quality last night?",
+          options: ["Excellent", "Good", "Fair", "Poor", "Very Poor"]
+        },
+        {
+          question: "How has your energy level been today?",
+          options: ["Very High", "High", "Moderate", "Low", "Very Low"]
+        },
+        {
+          question: "How would you rate your stress level?",
+          options: ["Very Low", "Low", "Moderate", "High", "Very High"]
+        }
+      ],
+      gratitude: true
+    };
+  };
+
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -62,7 +94,6 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch mood stats when user is available
   useEffect(() => {
     if (user) {
       fetchMoodStats();
@@ -74,22 +105,18 @@ export default function Home() {
       setIsLoadingStats(true);
       const stats = await moodApi.getMoodStats();
       
-      // Update the answers state with fetched data
       setAnswers(prev => ({
         ...prev,
         weeklyMood: stats.weeklyMood || prev.weeklyMood,
         weeklyHealth: stats.weeklyHealth || prev.weeklyHealth,
       }));
       
-      // Update week days if provided by backend
       if (stats.weekDays) {
         setWeekDays(stats.weekDays);
       }
       
-      console.log('Mood stats fetched:', stats);
     } catch (error) {
       console.error('Error fetching mood stats:', error);
-      // Keep default values if fetch fails
     } finally {
       setIsLoadingStats(false);
     }
@@ -98,21 +125,51 @@ export default function Home() {
   const addUser = () => {
     const name = prompt("Enter new user's name:");
     if (name) {
-      alert(`User '${name}' created! Please login as this user.`);
+      const existingIds = Object.keys(questionsByUser).map(id => parseInt(id));
+      const maxId = Math.max(...existingIds, 0);
+      const newUserId = maxId + 1;
+      
+      const defaultQuestions = questionsByUser['1'] || {
+        mood: ["😊", "😢", "😡", "😌", "😰", "🤩", "🥱"],
+        healthPrompt: "What is the status of your health?",
+        mcqs: [
+          {
+            question: "How would you rate your sleep quality last night?",
+            options: ["Excellent", "Good", "Fair", "Poor", "Very Poor"]
+          },
+          {
+            question: "How has your energy level been today?",
+            options: ["Very High", "High", "Moderate", "Low", "Very Low"]
+          }
+        ],
+        gratitude: true
+      };
+      
+      questionsByUser[String(newUserId)] = { ...defaultQuestions };
+      
+      const newUser = { 
+        id: newUserId, 
+        name: name,
+        emoji: "👤"
+      };
+      
+      localStorage.setItem('user', JSON.stringify(newUser));
+      setUser(newUser);
+      
+      alert(`User '${name}' created and logged in!`);
     }
   };
 
-  const userQ = questionsByUser[String(user?.id || 1)];
-  const moods = userQ?.mood || ["😊", "😢", "😡", "😌", "😰", "🤩", "🥱"];
-  const healthPrompt = userQ?.healthPrompt || "What is the status of your health?";
-  const mcqs = userQ?.mcqs || [];
-  const gratitudeEnabled = userQ?.gratitude ?? true;
+  const userQ = user ? getUserQuestions(user.id) : getUserQuestions(1);
+  const moods = userQ.mood;
+  const healthPrompt = userQ.healthPrompt;
+  const mcqs = userQ.mcqs;
+  const gratitudeEnabled = userQ.gratitude;
 
   const updateAnswers = (update: any) => {
     setAnswers((prev) => ({ ...prev, ...update }));
   };
 
-  // Updated function to handle saving responses to API
   const handleSaveResponse = async () => {
     if (!user) {
       alert("Please log in to save your response.");
@@ -128,21 +185,17 @@ export default function Home() {
     setSaveStatus('idle');
 
     try {
-      // Find the selected mood option to get the emoji
       const selectedMoodOption = moodOptions.find(mood => mood.label === answers.selectedMood);
       
-      // Convert MCQ answers to the expected format
       const mcqAnswersFormatted: { [key: string]: string } = {};
       mcqs.forEach((mcq: any, index: number) => {
         if (answers.mcqAnswers[index] !== null && answers.mcqAnswers[index] !== undefined) {
-          // Create a key from the question (simplified)
           const key = mcq.question.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
           const selectedOption = mcq.options[answers.mcqAnswers[index]];
           mcqAnswersFormatted[key] = selectedOption;
         }
       });
 
-      // Prepare the data to send to API
       const moodData = {
         user_id: user.id,
         label: answers.selectedMood,
@@ -152,27 +205,12 @@ export default function Home() {
         mcqAnswers: Object.keys(mcqAnswersFormatted).length > 0 ? mcqAnswersFormatted : undefined,
       };
 
-      console.log("Sending mood data:", moodData);
-
-      // Call the API
       const response = await moodApi.addMoodEntry(moodData);
       
-      console.log("API Response:", response);
       setSaveStatus('success');
       alert("Response saved successfully!");
 
-      // Refresh mood stats after saving
       await fetchMoodStats();
-
-      // Optionally reset the form (uncomment if you want to clear the form)
-      // setAnswers({
-      //   selectedMood: null,
-      //   healthStatus: "",
-      //   mcqAnswers: [],
-      //   gratitude: "",
-      //   weeklyMood: answers.weeklyMood,
-      //   weeklyHealth: answers.weeklyHealth,
-      // });
 
     } catch (error: any) {
       console.error("Error saving mood entry:", error);
@@ -183,7 +221,6 @@ export default function Home() {
     }
   };
 
-  // Weekly graph data
   const data = {
     labels: weekDays,
     datasets: [
@@ -234,22 +271,18 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen flex flex-col items-center pt-24 pb-10 px-2 overflow-hidden bg-gradient-to-br from-white via-blue-50 to-violet-100">
-      {/* Decorative blue-violet background shapes */}
       <div className="absolute -top-32 -left-32 w-[400px] h-[400px] bg-gradient-to-br from-blue-100 via-violet-100 to-transparent rounded-full blur-3xl opacity-70 z-0" />
       <div className="absolute top-1/2 -right-40 w-[350px] h-[350px] bg-gradient-to-tr from-violet-100 via-blue-50 to-transparent rounded-full blur-2xl opacity-60 z-0" />
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-gradient-to-t from-blue-50 via-violet-100 to-transparent rounded-t-3xl blur-2xl opacity-60 z-0" />
       <div className="absolute top-1/3 left-1/4 w-40 h-40 bg-blue-100 rounded-full blur-2xl opacity-30 z-0" />
       <div className="absolute bottom-10 right-1/4 w-32 h-32 bg-violet-100 rounded-full blur-2xl opacity-20 z-0" />
       
-      {/* Main content */}
       <Header />
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-10 mt-4 z-10">
-        {/* User info */}
         <div className="text-center">
           <h1 className="text-xl font-semibold text-blue-700">Welcome, {user.name}! {user.emoji}</h1>
         </div>
 
-        {/* Mood Selection */}
         <div>
           <h2 className="text-xl font-bold text-blue-700 mb-4 text-center">Select your mood...?</h2>
           <div className="flex justify-center gap-4 flex-wrap relative min-h-[140px]">
@@ -269,7 +302,6 @@ export default function Home() {
                   <span className="text-4xl drop-shadow-lg mb-2">{mood.emoji}</span>
                   <span className={`text-2xl font-bold mb-1 ${answers.selectedMood === mood.label ? "text-black" : "text-gray-400"}`}>{mood.label}</span>
                   <span className="text-xs font-semibold text-blue-900">{mood.label}</span>
-                  {/* Backlight effect */}
                   <div
                     className="absolute inset-0 rounded-xl pointer-events-none"
                     style={{
@@ -288,7 +320,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Health Status */}
         <div>
           <h2 className="text-xl font-bold text-blue-700 mb-4 text-center">{healthPrompt}</h2>
           <motion.div
@@ -313,7 +344,6 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* MCQ Section */}
         <div className="flex flex-col gap-6">
           {mcqs.map((mcq: { question: string; options: string[] }, idx: number) => (
             <div key={mcq.question} className="bg-blue-50 rounded-xl p-4 shadow flex flex-col gap-2">
@@ -337,7 +367,6 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Gratitude/Positive Prompt */}
         {gratitudeEnabled && (
           <div className="bg-green-50 rounded-xl p-4 shadow flex flex-col gap-2">
             <div className="font-semibold text-green-800 mb-1">Write one thing you're grateful for today:</div>
@@ -351,7 +380,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Weekly Graph */}
         <div className="mt-6">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-lg font-semibold text-blue-700">Current Weekly Mood & Health Status of all the Users</h2>
@@ -383,7 +411,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Save Response Button */}
         <div className="mt-8 flex justify-center">
           <button
             onClick={handleSaveResponse}
@@ -405,7 +432,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Status Message */}
         {saveStatus === 'success' && (
           <div className="text-center text-green-600 font-medium">
             ✅ Response saved successfully!
