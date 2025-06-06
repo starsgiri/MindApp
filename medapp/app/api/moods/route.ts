@@ -11,6 +11,7 @@ export async function POST(request: Request) {
 
     const { mood, note } = await request.json();
     const userId = auth.userId;
+    
 
     const connection = await pool.getConnection();
     const [result]: any = await connection.execute(

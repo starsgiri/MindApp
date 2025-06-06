@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-export async function POST(request: Request) {
+interface UserRow extends RowDataPacket {
+  id: number;
+  email: string;
+}
+
+export async function POST(request: NextRequest) {
   try {
     const { name, email, password } = await request.json();
 
     const connection = await pool.getConnection();
     
     // Check if user already exists
-    const [existingUsers]: any = await connection.execute(
+    const [existingUsers] = await connection.execute<UserRow[]>(
       'SELECT * FROM users WHERE email = ?',
       [email]
     );
@@ -26,7 +33,7 @@ export async function POST(request: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert new user
-    const [result]: any = await connection.execute(
+    const [result] = await connection.execute<ResultSetHeader>(
       'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
       [name, email, hashedPassword]
     );

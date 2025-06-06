@@ -2,13 +2,24 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { RowDataPacket } from 'mysql2';
 
-export async function POST(request: Request) {
+interface User extends RowDataPacket {
+  id: number;
+  email: string;
+  password: string;
+  name: string;
+  created_at: Date;
+}
+
+import { NextRequest } from 'next/server';
+
+export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
 
     const connection = await pool.getConnection();
-    const [rows]: any = await connection.execute(
+    const [rows] = await connection.execute<User[]>(
       'SELECT * FROM users WHERE email = ?',
       [email]
     );
