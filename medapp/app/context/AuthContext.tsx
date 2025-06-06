@@ -25,7 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved auth state on component mount
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
 

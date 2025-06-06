@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { initializeDatabase } = require('./config/database');
+const {initializeDatabase} = require('../config/sequelize');
 require('dotenv').config();
 
 const app = express();
@@ -12,12 +12,10 @@ app.use(express.json());
 // Import routes
 const authRoutes = require('./routes/auth');
 const moodRoutes = require('./routes/mood');
-const entryRoutes = require('./routes/entry');
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/mood', moodRoutes);
-app.use('/api/entry', entryRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
